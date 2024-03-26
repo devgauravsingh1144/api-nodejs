@@ -1,6 +1,6 @@
 const express = require('express');
 const admin = require('firebase-admin');
-
+const bcrypt = require('bcrypt');
 // Initialize Firebase Admin SDK
 const serviceAccount = require('./servicekey.json'); // Path to your service account key file
 admin.initializeApp({
@@ -16,27 +16,47 @@ const port = 3000;
 app.use(express.json());
 
 app.post('/api/data', async (req, res) => {
-    try {
-      const newData = req.body;
+  try {
+      const {name, email, password,mobile } = req.body;
+      
+      // Hash the password
+      const hashedPassword = await hashPassword(password);
+
+      // Construct the data to be stored in the database
+      const newData = {
+          name:name,
+          email: email,
+          password: hashedPassword,
+          mobile:mobile
+          // Add other data fields as needed
+      };
+
       const collectionRef = db.collection('data');
-  
+
       // Check if the collection exists
       const collectionExists = await collectionRef.get().then(snapshot => !snapshot.empty);
-  
+
       if (!collectionExists) {
-        // Collection doesn't exist, create it
-        await collectionRef.doc().set({}); // Creating an empty document to force creation of the collection
+          // Collection doesn't exist, create it
+          await collectionRef.doc().set({}); // Creating an empty document to force creation of the collection
       }
-  
+
       // Add data to the collection
       const docRef = await collectionRef.add(newData);
-  
+
       res.status(201).json({ message: 'Data created successfully', id: docRef.id });
-    } catch (error) {
+  } catch (error) {
       console.error('Error adding document: ', error);
       res.status(500).json({ error: 'Failed to create data' });
-    }
-  });
+  }
+});
+
+// Function to hash a password
+async function hashPassword(password) {
+  const saltRounds = 10; // Number of salt rounds (higher is slower but more secure)
+  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  return hashedPassword;
+}
   
 // get All
 app.get('/api/data/', (req, res) => {
@@ -116,11 +136,11 @@ app.post('/api/data/retrieve', async (req, res) => {
         const storedHashedPassword = userData.password;
 
         // Compare provided password with stored hashed password
-        // const passwordMatch = await bcrypt.compare(password, storedHashedPassword);
-        // if (!passwordMatch) {
-        //     res.status(401).json({ error: 'Invalid email or password' });
-        //     return;
-        // }
+        const passwordMatch = await bcrypt.compare(password, storedHashedPassword);
+        if (!passwordMatch) {
+            res.status(401).json({ error: 'Invalid email or password' });
+            return;
+        }
 
         // Password matches, respond with user data
         res.status(200).json(userData);
