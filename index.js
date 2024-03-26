@@ -1,6 +1,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 // Initialize Firebase Admin SDK
 const serviceAccount = require('./servicekey.json'); // Path to your service account key file
 admin.initializeApp({
@@ -15,7 +16,39 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-app.post('/api/data', async (req, res) => {
+// Function to generate a random API key
+function generateApiKey() {
+  return crypto.randomBytes(20).toString('hex');
+}
+
+// Endpoint to retrieve data based on email and password match
+app.get('/api/data/getapikey', async (req, res) => {
+  try {     
+    const apiKey = generateApiKey();
+    console.log('Generated API key:', apiKey);
+     
+      // Password matches, respond with user data
+      res.status(200).json(apiKey);
+  } catch (error) {
+      console.error('Error retrieving data: ', error);
+      res.status(500).json({ error: 'Failed to retrieve data' });
+  }
+});
+
+// Middleware function to validate API key
+function validateApiKey(req, res, next) {
+  const apiKey = req.headers['api-key'];
+
+  // Check if API key is provided in request headers
+  if (!apiKey || apiKey !== '570c7f042e65d24badd401ea936f57513c53b44c') {
+      return res.status(401).json({ error: 'Unauthorized - Invalid API key' });
+  }
+
+  // API key is valid, allow request to proceed
+  next();
+}
+
+app.post('/api/data',validateApiKey, async (req, res) => {
   try {
       const {name, email, password,mobile } = req.body;
       
@@ -59,7 +92,7 @@ async function hashPassword(password) {
 }
   
 // get All
-app.get('/api/data/', (req, res) => {
+app.get('/api/data/',validateApiKey, (req, res) => {
     db.collection('data').get()
       .then(snapshot => {
         const dataArray = [];
@@ -75,7 +108,7 @@ app.get('/api/data/', (req, res) => {
 });
 
 // Read operation
-app.get('/api/data/:id', (req, res) => {
+app.get('/api/data/:id',validateApiKey,(req, res) => {
   const dataId = req.params.id;
   db.collection('data').doc(dataId).get()
     .then(doc => {
@@ -92,7 +125,7 @@ app.get('/api/data/:id', (req, res) => {
 });
 
 // Update operation
-app.put('/api/data/:id', (req, res) => {
+app.put('/api/data/:id',validateApiKey,(req, res) => {
   const dataId = req.params.id;
   const updatedData = req.body;
   db.collection('data').doc(dataId).set(updatedData, { merge: true })
@@ -106,7 +139,7 @@ app.put('/api/data/:id', (req, res) => {
 });
 
 // Delete operation
-app.delete('/api/data/:id', (req, res) => {
+app.delete('/api/data/:id',validateApiKey,(req, res) => {
   const dataId = req.params.id;
   db.collection('data').doc(dataId).delete()
     .then(() => {
@@ -120,7 +153,7 @@ app.delete('/api/data/:id', (req, res) => {
 
 
 // Endpoint to retrieve data based on email and password match
-app.post('/api/data/retrieve', async (req, res) => {
+app.post('/api/data/retrieve','validateApiKey',async (req, res) => {
     try {
         const { email, password } = req.body;
 
